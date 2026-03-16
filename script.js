@@ -747,6 +747,7 @@ async function addMoney(event) {
 // Updated withdrawMoney function for EasyPaisa/JazzCash withdrawal
 async function withdrawMoney(event) {
     event.preventDefault();
+
     const amount = Number(document.getElementById('withdraw-amount').value);
     const withdrawNumber = document.getElementById('withdraw-number').value.trim();
     const ownerName = document.getElementById('withdraw-owner-name').value.trim();
@@ -755,66 +756,103 @@ async function withdrawMoney(event) {
     if (amount <= 0) {
         return showToast('Amount must be positive!', true);
     }
+
     if (!withdrawNumber || !ownerName || !accountType) {
-        return showToast('Please fill all withdrawal details (Number, Owner Name, Account Type)!', true);
+        return showToast('Please fill all withdrawal details!', true);
     }
+
     if (amount > currentUserData.wallet_balance) {
         return showToast('Insufficient funds!', true);
     }
 
     const user = auth.currentUser;
-    if (!user) return showToast('Login required!', true);
 
+    if (!user) {
+        return showToast('Login required!', true);
+    }
+
+    const uid = user.uid;
     const newBalance = currentUserData.wallet_balance - amount;
 
-    const transactionRef = db.ref(`transactions/${user.uid}`).push();
-    const pendingWithdrawalRef = db.ref(`pending_withdrawals/${user.uid}`).push();
+    try {
 
-    const updates = {
-        [`/users/${user.uid}/wallet_balance`]: newBalance,
-        [transactionRef.path]: {
+        // Transaction reference
+        const transactionRef = db.ref("transactions/" + uid).push();
+
+        // Pending withdrawal reference
+        const withdrawalRef = db.ref("pending_withdrawals/" + uid).push();
+
+        // Save transaction
+        await transactionRef.set({
             amount: amount,
-            type: 'debit',
-            description: `Withdrawal initiated`,
-            status: 'requested',
-            created_at: new Date().toISOString()
-        },
-        [pendingWithdrawalRef.path]: {
+            type: "debit",
+            description: "Withdrawal initiated",
+            status: "requested",
+            created_at: Date.now()
+        });
+
+        // Save withdrawal request
+        await withdrawalRef.set({
             amount: amount,
-            status: 'pending',
+            status: "pending",
             withdrawal_account: withdrawNumber,
             withdrawal_owner_name: ownerName,
             withdrawal_account_type: accountType,
-            created_at: new Date().toISOString(),
-            user_uid: user.uid,
+            created_at: Date.now(),
+            user_uid: uid,
             user_email: currentUserData.email || user.email,
-            user_username: currentUserData.username || 'N/A',
+            user_username: currentUserData.username || "N/A",
             transaction_id: transactionRef.key
-        }
-    };
-    await db.ref().update(updates);
+        });
 
-    showToast('Withdrawal request sent! Your balance has been updated and request is pending admin approval.');
-    toggleModal('withdrawMoneyModal', false);
-    event.target.reset();
+        // Update wallet balance
+        await db.ref("users/" + uid + "/wallet_balance").set(newBalance);
+
+        showToast("Withdrawal request sent! Waiting for admin approval.");
+
+        toggleModal("withdrawMoneyModal", false);
+
+        event.target.reset();
+
+    } catch (error) {
+
+        console.error(error);
+        showToast("Withdrawal failed. Please try again.", true);
+
+    }
 }
 
-function logout() { auth.signOut(); }
+function logout() {
+    auth.signOut();
+}
+
 function changePassword() {
+
     const user = auth.currentUser;
+
     if (user && user.email) {
+
         auth.sendPasswordResetEmail(user.email)
             .then(() => showToast(`Password reset link sent to ${user.email}.`))
             .catch(err => showToast(err.message, true));
+
     } else {
-        showToast("No active user or email found to send reset link.", true);
+
+        showToast("No active user or email found.", true);
+
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+
     if (firebase.apps.length) {
-        attachLoginListeners(); // Attach modal login/signup listeners
+
+        attachLoginListeners();
+
         document.getElementById('addMoneyForm').addEventListener('submit', addMoney);
+
         document.getElementById('withdrawMoneyForm').addEventListener('submit', withdrawMoney);
+
     }
+
 });
