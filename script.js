@@ -561,7 +561,6 @@ function renderProfilePage(container) {
 
 // Helper function to generate referral link
 function generateReferralLink(uid) {
-    // IMPORTANT: Replace "https://your-app-domain.com" with the actual domain where your PWA is hosted.
     // This link is for tracking referrals *within this web application*.
     // The Google Play Store 'referrer' parameter works differently and is typically for native Android apps.
     return `https://nazim000679g.github.io/Tournament/?ref=${encodeURIComponent(uid)}`;
